@@ -1,24 +1,28 @@
-from fastapi import APIRouter, WebSocket
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from app.services.transcriber import transcribe_pitch
 
 websocket_router = APIRouter()
-executor = ThreadPoolExecutor(max_workers=4)
+executor = ThreadPoolExecutor(max_workers=10)
 
-@websocket_router.get("/ws/pitch")
+
+async def process_chunk(audio_chunk: bytes, websocket: WebSocket, loop: asyncio.AbstractEventLoop):
+    notes = await loop.run_in_executor(executor, transcribe_pitch, audio_chunk)
+    await websocket.send_json({"notes": notes})
+
+@websocket_router.websocket("/pitch")
 async def pitch_websocket(websocket: WebSocket):
-  await websocket.accept()
+    await websocket.accept()
+    loop = asyncio.get_running_loop()
 
-  while True:
     try:
-      audio_chunk = await websocket.recieve_bytes()
+      while True:
+        audio_chunk = await websocket.receive_bytes()
 
-      loop = asyncio.get_running_loop()
-      notes = await loop.run_in_executor(executor, transcribe_pitch, audio_chunk)
+        asyncio.create_task(process_chunk(audio_chunk, websocket, loop))
 
-      await websocket.send_json({"notes": notes})
-
+    except WebSocketDisconnect:
+        print("❎ WebSocket client disconnected")
     except Exception as e:
-      await websocket.close()
-      break
+        print(f"❌ Unexpected error: {e}")

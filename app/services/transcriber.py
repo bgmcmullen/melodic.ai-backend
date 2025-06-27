@@ -1,11 +1,21 @@
 import crepe
 import librosa
+import io
 import numpy as np
+import soundfile as sf
 
-def transcribe_pitch(audio_path, n=10, step_size=100):
-  y, sr = librosa.load(audio_path, sr= 16000, mono=True)
+def transcribe_pitch(audio_bytes, n=1, step_size=50):
+  y, sr = sf.read(io.BytesIO(audio_bytes), dtype='float32')
 
-  time, freq, confidence, _ = crepe.predict(y, sr, viterbi=True, step_size=step_size, model='small')
+  # 🔒 Mono and resample to 16kHz
+  if y.ndim > 1:
+      y = y.mean(axis=1)
+  if sr != 16000:
+      y = librosa.resample(y, orig_sr=sr, target_sr=16000)
+      sr = 16000
+
+
+  time, freq, confidence, _ = crepe.predict(y, sr, viterbi=True, step_size=step_size)
 
   # trim array to a number divisible by n
 

@@ -3,33 +3,49 @@ import librosa
 import io
 import numpy as np
 import soundfile as sf
+import matplotlib.pyplot as plt
 
-def transcribe_pitch(audio_bytes, n=1, step_size=50):
+def transcribe_pitch(audio_bytes, step_size=20):
   y, sr = sf.read(io.BytesIO(audio_bytes), dtype='float32')
 
-  # 🔒 Mono and resample to 16kHz
+  # Convert to Mono and resample to 16kHz
   if y.ndim > 1:
       y = y.mean(axis=1)
   if sr != 16000:
       y = librosa.resample(y, orig_sr=sr, target_sr=16000)
       sr = 16000
 
-
   time, freq, confidence, _ = crepe.predict(y, sr, viterbi=True, step_size=step_size)
 
-  # trim array to a number divisible by n
-
-  length = len(freq) - (len(freq) % n)
-  freq_timmed = freq[:length] 
 
   # Convert to notes
   notes = []
 
-  # Average every n frequencies
-  freq_averaged = np.mean(freq_timmed.reshape(-1, n), axis=1)
+  for f, c in zip(freq, confidence):
+    print(f, c)
+    if c < 0.5:
+      notes.append(0)
+    else:
+      notes.append(hz_to_note(f))
 
-  for f in freq_averaged:
-    notes.append(hz_to_note(f))
+  fig, ax1 = plt.subplots()
+ 
+  # Plot the pitch track
+  ax1.plot(time, notes, color='b', label='Smoothed Pitch')
+  ax1.set_xlabel("Time (s)")
+  ax1.set_ylabel("Frequency (Hz)", color='b')
+  ax1.tick_params(axis='y', labelcolor='b')
+
+  # Create a second y-axis for confidence
+  ax2 = ax1.twinx()
+  ax2.plot(time, confidence, color='r', alpha=0.6, label='confidence')
+  ax2.set_ylabel("confidence", color='r')
+  ax2.tick_params(axis='y', labelcolor='r')
+
+
+  plt.title("CREPE Pitch Track with Confidence Overlay")
+  fig.tight_layout()
+  plt.show()
 
   return notes
 
@@ -44,5 +60,16 @@ def hz_to_note(freq):
 
   cent_deviation = (midi - rounded_midi) * 100
   note_letter_name = note_names[rounded_midi % 12]
-  octave = midi // 12 - 1
+  octave = rounded_midi // 12 - 1
+  return midi
   return f"{note_letter_name} {octave} {cent_deviation}"
+
+filepath = "VocalSet11/FULL/female1/arpeggios/straight/f1_arpeggios_straight_a.wav"
+
+with open(filepath, "rb") as f:
+   audio_bytes = f.read()
+
+notes = transcribe_pitch(audio_bytes)
+
+print(notes)
+

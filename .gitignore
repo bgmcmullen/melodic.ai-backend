@@ -55,6 +55,8 @@ coverage.xml
 .pytest_cache/
 cover/
 
+VocalSet11/
+
 # Translations
 *.mo
 *.pot
@@ -139,6 +141,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+python-env
 
 # Spyder project settings
 .spyderproject
